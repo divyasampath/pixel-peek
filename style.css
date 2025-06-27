@@ -1,0 +1,16 @@
+* {
+  font-family: sans-serif;
+}
+
+/* Remove black background from tippy.js light theme tooltips */
+.tippy-box[data-theme~='light'] {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Make tippy arrow match the white tooltip background and border */
+.tippy-box[data-theme~='light'] > .tippy-arrow::before {
+  background: #fff !important;
+  border: 1.5px solid #e0e0e0 !important;
+  box-sizing: border-box;
+}

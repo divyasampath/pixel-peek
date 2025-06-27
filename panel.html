@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PixelPeek Toolbar</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="stylesheet" href="pico.min.css">
+  <style>
+    body {
+      margin: 0;
+      background: transparent;
+    }
+    #toolbar {
+      position: fixed;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+      padding: 10px 8px;
+      z-index: 2147483647;
+      border: 1px solid #e0e0e0;
+      width: 56px;
+      align-items: center;
+    }
+    .toolbar-toggle {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .toolbar-toggle label {
+      font-size: 0.9rem;
+      color: #222;
+      font-weight: 500;
+      text-align: center;
+      margin-bottom: 2px;
+    }
+    .toggle-switch {
+      accent-color: #1976d2;
+      width: 32px;
+      height: 18px;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <div class="toolbar-toggle">
+      <label for="toggle-margin">M</label>
+      <input type="checkbox" id="toggle-margin" class="toggle-switch" title="Margin/Padding">
+    </div>
+    <div class="toolbar-toggle">
+      <label for="toggle-font">F</label>
+      <input type="checkbox" id="toggle-font" class="toggle-switch" title="Font Info">
+    </div>
+    <div class="toolbar-toggle">
+      <label for="toggle-measure">↔</label>
+      <input type="checkbox" id="toggle-measure" class="toggle-switch" title="Measure">
+    </div>
+  </div>
+  <script src="panel.js"></script>
+</body>
+</html> 

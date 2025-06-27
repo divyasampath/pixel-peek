@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "PixelPeek",
+  "version": "1.0",
+  "description": "Highlight margin, padding, and font info using Rough Notation.",
+  "permissions": ["scripting", "activeTab", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "Activate PixelPeek"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["rough-notation.iife.js", "content_script.js"],
+      "css": ["style.css"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "panel.html",
+        "panel.js",
+        "shoelace.js",
+        "shoelace.css",
+        "pico.min.css"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
