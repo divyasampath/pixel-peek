@@ -64,3 +64,12 @@ PixelPeek is an in-browser visual inspection tool that makes layout and style an
 
 ### 🔸 Content Script (`src/content_script.js`)
 - Injects the toolbar
+
+- ## 🧪 Try It Locally
+
+1. Clone this repo
+2. Go to `chrome://extensions`
+3. Enable **Developer Mode**
+4. Click **Load unpacked**
+5. Select the `pixelpeek/` folder
+
