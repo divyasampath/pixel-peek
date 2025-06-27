@@ -43,22 +43,43 @@
       height: 18px;
       margin: 0 auto;
     }
+    .mode-btn {
+      background: none;
+      border: none;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      transition: background 0.2s, color 0.2s;
+      cursor: pointer;
+      padding:4px !important;
+    }
+    .mode-btn.active {
+      background: #c6bfd9;
+      border:none;
+      background: radial-gradient(circle, rgba(198, 191, 217, 1) 0%, rgba(222, 222, 250, 1) 35%, rgba(218, 240, 245, 1) 100%);
+    }
+    .mode-btn svg, .mode-btn img {
+      display: block;
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+    }
   </style>
 </head>
 <body>
   <div id="toolbar">
-    <div class="toolbar-toggle">
-      <label for="toggle-margin">M</label>
-      <input type="checkbox" id="toggle-margin" class="toggle-switch" title="Margin/Padding">
-    </div>
-    <div class="toolbar-toggle">
-      <label for="toggle-font">F</label>
-      <input type="checkbox" id="toggle-font" class="toggle-switch" title="Font Info">
-    </div>
-    <div class="toolbar-toggle">
-      <label for="toggle-measure">↔</label>
-      <input type="checkbox" id="toggle-measure" class="toggle-switch" title="Measure">
-    </div>
+    <button class="mode-btn" id="btn-margin" title="Margin/Padding">
+      <img src="merge.png" alt="Margin Icon" class="mode-icon" />
+    </button>
+    <button class="mode-btn" id="btn-font" title="Font Info">
+      <img src="size.png" alt="Font Icon" class="mode-icon" />
+    </button>
+    <button class="mode-btn" id="btn-copy-css" title="Copy CSS">
+      <img src="copy.png" alt="Copy CSS Icon" class="mode-icon" />
+    </button>
   </div>
   <script src="panel.js"></script>
 </body>

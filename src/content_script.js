@@ -20,6 +20,7 @@ let measureStartEl = null;
 let measureEndEl = null;
 let measureLine = null;
 let measureLabel = null;
+let copyCssMode = false;
 
 // Listen for toggle messages from background (extension icon click)
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -34,11 +35,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       console.log('PixelPeek: Panel injected');
     }
   }
+  if (msg.type === 'PIXELPEEK_TOGGLE_ENABLED') {
+    setPixelPeekEnabled(msg.enabled);
+  }
+  if (msg.type === 'PIXELPEEK_QUERY_ENABLED') {
+    sendResponse({ enabled: pixelpeekEnabled });
+  }
 });
 
 // On load, check storage for enabled state
 chrome.storage.sync.get(['pixelpeekEnabled'], ({ pixelpeekEnabled: enabled }) => {
   console.log('Content script loaded state:', enabled);
+  // Default to disabled if not set
+  if (enabled === undefined) enabled = false;
   pixelpeekEnabled = !!enabled;
   setPixelPeekEnabled(pixelpeekEnabled);
 });
@@ -138,12 +147,13 @@ labelNames.forEach(side => {
   mLabel.className = 'pixelpeek-label pixelpeek-margin-label';
   mLabel.style.position = 'fixed';
   mLabel.style.zIndex = 2147483647;
-  mLabel.style.background = 'rgba(255, 165, 0, 0.15)';
-  mLabel.style.color = '#fff';
+  mLabel.style.background = '#fff';
+  mLabel.style.color = '#222';
   mLabel.style.fontFamily = 'monospace';
   mLabel.style.fontSize = '12px';
   mLabel.style.padding = '2px 6px';
   mLabel.style.borderRadius = '6px';
+  mLabel.style.border = '1px solid #222';
   mLabel.style.pointerEvents = 'none';
   mLabel.style.display = 'none';
   shadowRoot.appendChild(mLabel);
@@ -267,6 +277,7 @@ document.addEventListener('mouseout', onMouseOut, true);
 // --- Click-to-lock selection and tooltip ---
 function lockSelection(target) {
   if (!marginMode) return;
+  if (isToolbarEvent({ target })) return;
   lockedElement = target;
   updateOverlay(target);
   showTooltip(target);
@@ -362,7 +373,7 @@ function clearSpacingSelection() {
 }
 function onSpacingClick(e) {
   if (!spacingMode) return;
-  if (shadowHost.contains(e.target)) return;
+  if (isToolbarEvent(e)) return;
   e.preventDefault();
   e.stopPropagation();
   if (spacingSelection.length < 2) {
@@ -534,18 +545,35 @@ function injectPanelIframe() {
   iframe.id = 'pixelpeek-panel-iframe';
   iframe.src = chrome.runtime.getURL('panel.html');
   iframe.style.position = 'fixed';
-  iframe.style.top = '80px';
+  iframe.style.top = '180px';
   iframe.style.right = '40px';
   iframe.style.zIndex = '2147483647';
-  iframe.style.width = '50px';
-  iframe.style.height = '190px';
+  iframe.style.width = '58px';
+  iframe.style.height = '170px';
   iframe.style.border = 'none';
-  iframe.style.background = 'none';
-  iframe.style.boxShadow = 'rgba(0, 0, 0, 0.2) 0px 2px 16px';
-  iframe.style.borderRadius = '12px';
-  iframe.style.border = '1px solid #e0e0e0';
   iframe.allow = 'clipboard-read; clipboard-write';
   document.body.appendChild(iframe);
+
+  // Make the toolbar draggable
+  interact(iframe).draggable({
+    inertia: true,
+    modifiers: [
+      interact.modifiers.restrictRect({
+        restriction: 'parent',
+        endOnly: true
+      })
+    ],
+    listeners: {
+      move(event) {
+        const target = event.target;
+        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+        target.style.transform = `translate(${x}px, ${y}px)`;
+        target.setAttribute('data-x', x);
+        target.setAttribute('data-y', y);
+      }
+    }
+  });
 }
 
 // Listen for messages from the panel iframe
@@ -596,12 +624,21 @@ window.addEventListener('message', (event) => {
         disableMeasureMode();
       }
       break;
+    case 'PIXELPEEK_TOGGLE_COPY_CSS':
+      copyCssMode = event.data.enabled;
+      if (copyCssMode) {
+        document.addEventListener('click', onCopyCssClick, true);
+      } else {
+        document.removeEventListener('click', onCopyCssClick, true);
+      }
+      break;
   }
 });
 
 function clearMeasureOverlay() {
-  if (measureLine && measureLine.parentNode) measureLine.parentNode.removeChild(measureLine);
-  if (measureLabel && measureLabel.parentNode) measureLabel.parentNode.removeChild(measureLabel);
+  document.querySelectorAll('.pixelpeek-measure-box').forEach(el => el.remove());
+  document.querySelectorAll('.pixelpeek-measure-line').forEach(el => el.remove());
+  document.querySelectorAll('.pixelpeek-measure-label').forEach(el => el.remove());
   measureLine = null;
   measureLabel = null;
   measureStartEl = null;
@@ -609,68 +646,203 @@ function clearMeasureOverlay() {
 }
 
 function onMeasureClick(e) {
-  // Ignore clicks on the toolbar iframe
+  if (isToolbarEvent(e)) return;
+  // Block if cursor is inside the toolbar iframe
   const toolbar = document.getElementById('pixelpeek-panel-iframe');
-  if (toolbar && (toolbar === e.target || toolbar.contains(e.target))) return;
+  if (toolbar && toolbar.contentWindow && toolbar.contentWindow.document.hasFocus()) return;
+  if (!(e.target instanceof Element)) return;
+
   if (!measureStartEl) {
     measureStartEl = e.target;
     clearMeasureOverlay();
-  } else if (!measureEndEl) {
+    drawMeasureBox(measureStartEl, '#1976d2');
+  } else {
     measureEndEl = e.target;
-    drawMeasureOverlay(measureStartEl, measureEndEl);
-    // Reset for next measurement
-    measureStartEl = null;
-    measureEndEl = null;
+    clearMeasureOverlay();
+    drawMeasureBox(measureStartEl, '#1976d2');
+    drawMeasureBox(measureEndEl, '#1976d2');
+    // Determine layout direction
+    let parent = measureStartEl.parentElement;
+    let direction = 'vertical';
+    if (parent) {
+      const style = window.getComputedStyle(parent);
+      if (style.display === 'flex') {
+        direction = (style.flexDirection === 'row' || style.flexDirection === 'row-reverse') ? 'horizontal' : 'vertical';
+      } else if (style.display === 'grid') {
+        direction = 'vertical';
+      } else if (style.display === 'inline-flex') {
+        direction = (style.flexDirection === 'row' || style.flexDirection === 'row-reverse') ? 'horizontal' : 'vertical';
+      }
+    }
+    drawMeasureLineAndLabel(measureStartEl, measureEndEl, direction);
+    e.preventDefault();
+    e.stopPropagation();
+    setTimeout(() => {
+      clearMeasureOverlay();
+      measureStartEl = null;
+      measureEndEl = null;
+    }, 1200);
+    return;
   }
   e.preventDefault();
   e.stopPropagation();
 }
 
-function drawMeasureOverlay(el1, el2) {
-  clearMeasureOverlay();
+function drawMeasureBox(el, color) {
+  const rect = el.getBoundingClientRect();
+  const box = document.createElement('div');
+  box.className = 'pixelpeek-measure-box';
+  box.style.position = 'fixed';
+  box.style.left = rect.left + 'px';
+  box.style.top = rect.top + 'px';
+  box.style.width = rect.width + 'px';
+  box.style.height = rect.height + 'px';
+  box.style.border = '2px dotted ' + color;
+  box.style.borderRadius = '4px';
+  box.style.pointerEvents = 'none';
+  box.style.zIndex = 2147483647;
+  box.style.boxSizing = 'border-box';
+  shadowRoot.appendChild(box);
+}
+
+function drawMeasureLineAndLabel(el1, el2, direction) {
   const r1 = el1.getBoundingClientRect();
   const r2 = el2.getBoundingClientRect();
-  // Find closest points between the two boxes
-  const x1 = r1.left + r1.width / 2;
-  const y1 = r1.top + r1.height / 2;
-  const x2 = r2.left + r2.width / 2;
-  const y2 = r2.top + r2.height / 2;
+  let x1, y1, x2, y2;
+  if (direction === 'horizontal') {
+    // Strictly horizontal: y1 = y2 (center)
+    if (r2.left < r1.left) {
+      // el2 is to the left of el1
+      x1 = r2.right;
+      x2 = r1.left;
+      y1 = y2 = r1.top + r1.height / 2;
+    } else {
+      // el2 is to the right of el1
+      x1 = r1.right;
+      x2 = r2.left;
+      y1 = y2 = r1.top + r1.height / 2;
+    }
+  } else {
+    // Strictly vertical: x1 = x2 (center)
+    if (r2.top < r1.top) {
+      // el2 is above el1
+      x1 = x2 = r1.left + r1.width / 2;
+      y1 = r2.bottom;
+      y2 = r1.top;
+    } else {
+      // el2 is below el1
+      x1 = x2 = r1.left + r1.width / 2;
+      y1 = r1.bottom;
+      y2 = r2.top;
+    }
+  }
   // Draw a dashed line
-  measureLine = document.createElement('div');
-  measureLine.style.position = 'fixed';
-  measureLine.style.zIndex = 2147483647;
-  measureLine.style.pointerEvents = 'none';
-  measureLine.style.borderTop = '2px dashed #1976d2';
-  measureLine.style.left = Math.min(x1, x2) + 'px';
-  measureLine.style.top = Math.min(y1, y2) + 'px';
-  measureLine.style.width = Math.hypot(x2 - x1, y2 - y1) + 'px';
-  measureLine.style.transformOrigin = '0 0';
-  measureLine.style.transform = `rotate(${Math.atan2(y2 - y1, x2 - x1)}rad)`;
-  shadowRoot.appendChild(measureLine);
+  const line = document.createElement('div');
+  line.className = 'pixelpeek-measure-line';
+  line.style.position = 'fixed';
+  line.style.zIndex = 2147483647;
+  line.style.pointerEvents = 'none';
+  line.style.borderTop = '2px dashed #1976d2';
+  line.style.left = Math.min(x1, x2) + 'px';
+  line.style.top = Math.min(y1, y2) + 'px';
+  line.style.width = direction === 'horizontal' ? Math.abs(x2 - x1) + 'px' : '2px';
+  line.style.height = direction === 'vertical' ? Math.abs(y2 - y1) + 'px' : '2px';
+  line.style.transform = '';
+  shadowRoot.appendChild(line);
   // Add a label with the distance
-  measureLabel = document.createElement('div');
-  measureLabel.style.position = 'fixed';
-  measureLabel.style.zIndex = 2147483647;
-  measureLabel.style.pointerEvents = 'none';
-  measureLabel.style.background = '#fff';
-  measureLabel.style.border = '1.5px dashed #1976d2';
-  measureLabel.style.color = '#1976d2';
-  measureLabel.style.fontFamily = 'monospace';
-  measureLabel.style.fontSize = '13px';
-  measureLabel.style.padding = '2px 8px';
-  measureLabel.style.borderRadius = '6px';
-  measureLabel.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
-  measureLabel.textContent = Math.round(Math.hypot(x2 - x1, y2 - y1)) + ' px';
+  const label = document.createElement('div');
+  label.className = 'pixelpeek-measure-label';
+  label.style.position = 'fixed';
+  label.style.zIndex = 2147483647;
+  label.style.pointerEvents = 'none';
+  label.style.background = 'rgba(30,30,30,0.85)';
+  label.style.border = '1.5px dashed #1976d2';
+  label.style.color = '#fff';
+  label.style.fontFamily = 'monospace';
+  label.style.fontSize = '13px';
+  label.style.padding = '2px 8px';
+  label.style.borderRadius = '6px';
+  label.style.boxShadow = '0 2px 8px rgba(0,0,0,0.18)';
+  label.style.textShadow = '0 1px 2px #000, 0 0 2px #000';
+  label.textContent = direction === 'horizontal'
+    ? Math.round(Math.abs(x2 - x1)) + ' px'
+    : Math.round(Math.abs(y2 - y1)) + ' px';
   // Place label at the midpoint
-  measureLabel.style.left = ((x1 + x2) / 2 - 24) + 'px';
-  measureLabel.style.top = ((y1 + y2) / 2 - 18) + 'px';
-  shadowRoot.appendChild(measureLabel);
+  label.style.left = (direction === 'horizontal'
+    ? ((x1 + x2) / 2 - 24)
+    : (x1 - 24)) + 'px';
+  label.style.top = (direction === 'vertical'
+    ? ((y1 + y2) / 2 - 18)
+    : (y1 - 18)) + 'px';
+  shadowRoot.appendChild(label);
 }
 
 function enableMeasureMode() {
   document.addEventListener('click', onMeasureClick, true);
+  window.addEventListener('scroll', clearMeasureOverlay, true);
+  document.addEventListener('keydown', measureEscapeHandler, true);
+  document.addEventListener('mouseleave', clearMeasureOverlay, true);
 }
 function disableMeasureMode() {
   document.removeEventListener('click', onMeasureClick, true);
+  window.removeEventListener('scroll', clearMeasureOverlay, true);
+  document.removeEventListener('keydown', measureEscapeHandler, true);
+  document.removeEventListener('mouseleave', clearMeasureOverlay, true);
   clearMeasureOverlay();
+}
+function measureEscapeHandler(e) {
+  if (e.key === 'Escape') clearMeasureOverlay();
+}
+
+// --- Block overlays/selection when hovering or clicking the toolbar ---
+function isToolbarEvent(e) {
+  const toolbar = document.getElementById('pixelpeek-panel-iframe');
+  return toolbar && (e.target === toolbar || toolbar.contains(e.target));
+}
+
+function onCopyCssClick(e) {
+  if (isToolbarEvent(e)) return;
+  if (!(e.target instanceof Element)) return;
+  const el = e.target;
+  const style = window.getComputedStyle(el);
+  // Pick relevant properties
+  const props = [
+    'font-size', 'font-family', 'font-weight', 'color', 'background',
+    'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'border', 'border-radius', 'line-height', 'letter-spacing', 'text-align'
+  ];
+  let css = '';
+  for (const prop of props) {
+    let val = style.getPropertyValue(prop);
+    if (val && val !== 'initial' && val !== '0px' && val !== 'none' && val !== 'normal') {
+      css += `${prop}: ${val};\n`;
+    }
+  }
+  // Copy to clipboard
+  navigator.clipboard.writeText(css.trim());
+  // Show notification
+  showCopiedNotification(el);
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function showCopiedNotification(target) {
+  const rect = target.getBoundingClientRect();
+  const notif = document.createElement('div');
+  notif.textContent = 'CSS copied!';
+  notif.style.position = 'fixed';
+  notif.style.left = (rect.left + rect.width / 2 - 40) + 'px';
+  notif.style.top = (rect.top - 32) + 'px';
+  notif.style.background = '#1976d2';
+  notif.style.color = '#fff';
+  notif.style.fontFamily = 'monospace';
+  notif.style.fontSize = '14px';
+  notif.style.padding = '6px 16px';
+  notif.style.borderRadius = '8px';
+  notif.style.boxShadow = '0 2px 8px rgba(0,0,0,0.18)';
+  notif.style.zIndex = 2147483647;
+  notif.style.pointerEvents = 'none';
+  document.body.appendChild(notif);
+  setTimeout(() => notif.remove(), 1200);
 } 
