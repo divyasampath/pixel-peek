@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <title>PixelPeek Toggle</title>
   <style>
-    body { font-family: sans-serif; margin: 16px; min-width: 180px; }
-    label { display: flex; align-items: center; gap: 8px; }
-    input[type="checkbox"] { width: 18px; height: 18px; }
+    body { font-family: sans-serif; margin: 0; padding: 16px; background: #fff; }
+    .toggle-label { display: flex; align-items: center; gap: 8px; font-size: 1.1em; }
+    .toggle-switch { width: 40px; height: 20px; }
   </style>
 </head>
 <body>
-  <label>
-    <input type="checkbox" id="pixelpeek-toggle">
+  <label class="toggle-label">
+    <input type="checkbox" id="toggle-enabled" class="toggle-switch">
     Enable PixelPeek
   </label>
   <script src="popup.js"></script>

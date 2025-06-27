@@ -1,22 +1,28 @@
 window.addEventListener('DOMContentLoaded', function() {
   console.log('panel.js loaded');
-  const marginToggle = document.getElementById('toggle-margin');
-  const fontToggle = document.getElementById('toggle-font');
-  const measureToggle = document.getElementById('toggle-measure');
-  console.log('marginToggle:', marginToggle, 'fontToggle:', fontToggle, 'measureToggle:', measureToggle);
+  const marginBtn = document.getElementById('btn-margin');
+  const fontBtn = document.getElementById('btn-font');
+  const copyCssBtn = document.getElementById('btn-copy-css');
+  const buttons = [marginBtn, fontBtn, copyCssBtn];
 
-  if (!marginToggle || !fontToggle || !measureToggle) {
-    console.error('One or more toggle elements not found:', {marginToggle, fontToggle, measureToggle});
-    return;
+  function setActive(btn) {
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
   }
 
-  marginToggle.addEventListener('change', (e) => {
-    parent.postMessage({ type: 'PIXELPEEK_TOGGLE_MARGIN', enabled: e.target.checked }, '*');
+  marginBtn.addEventListener('click', () => {
+    setActive(marginBtn);
+    parent.postMessage({ type: 'PIXELPEEK_TOGGLE_MARGIN', enabled: true }, '*');
   });
-  fontToggle.addEventListener('change', (e) => {
-    parent.postMessage({ type: 'PIXELPEEK_TOGGLE_FONT', enabled: e.target.checked }, '*');
+  fontBtn.addEventListener('click', () => {
+    setActive(fontBtn);
+    parent.postMessage({ type: 'PIXELPEEK_TOGGLE_FONT', enabled: true }, '*');
   });
-  measureToggle.addEventListener('change', (e) => {
-    parent.postMessage({ type: 'PIXELPEEK_TOGGLE_MEASURE', enabled: e.target.checked }, '*');
+  copyCssBtn.addEventListener('click', () => {
+    setActive(copyCssBtn);
+    parent.postMessage({ type: 'PIXELPEEK_TOGGLE_COPY_CSS', enabled: true }, '*');
   });
+
+  // Optionally, set default active mode
+  setActive(marginBtn);
 }); 

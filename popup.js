@@ -1,15 +1,22 @@
-const toggle = document.getElementById('pixelpeek-toggle');
-console.log('PixelPeek popup loaded');
-// Load state
-chrome.storage.sync.get(['pixelpeekEnabled'], ({ pixelpeekEnabled }) => {
-  console.log('Popup loaded state:', pixelpeekEnabled);
-  toggle.checked = !!pixelpeekEnabled;
-});
-// Save state and notify content script
-toggle.addEventListener('change', () => {
-  chrome.storage.sync.set({ pixelpeekEnabled: toggle.checked });
+document.addEventListener('DOMContentLoaded', () => {
+  const toggle = document.getElementById('toggle-enabled');
+
+  // Get the current tab and check if PixelPeek is enabled
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    console.log('Popup sending PIXELPEEK_TOGGLE', toggle.checked);
-    chrome.tabs.sendMessage(tabs[0].id, { type: 'PIXELPEEK_TOGGLE', enabled: toggle.checked });
+    const tab = tabs[0];
+    chrome.tabs.sendMessage(tab.id, { type: 'PIXELPEEK_QUERY_ENABLED' }, (response) => {
+      if (response && typeof response.enabled === 'boolean') {
+        toggle.checked = response.enabled;
+      } else {
+        toggle.checked = true; // Default to enabled
+      }
+    });
+  });
+
+  toggle.addEventListener('change', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      chrome.tabs.sendMessage(tab.id, { type: 'PIXELPEEK_TOGGLE_ENABLED', enabled: toggle.checked });
+    });
   });
 }); 
